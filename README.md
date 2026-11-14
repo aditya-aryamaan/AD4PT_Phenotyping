@@ -1,14 +1,121 @@
-# AD4PT · Strawberry Phenotyping
+# AD4PT · OpenIPC Crop Phenotyping
 
-Live ripe/unripe strawberry detection and approximate counting from an
-OpenIPC/APFPV camera stream. AD4PT decodes H.264 video with GStreamer, runs a
-YOLO11s detector, displays labelled boxes, and saves one JSON count summary when
-the session ends.
+**Autonomous Drone for Plant Telemetry — live strawberry detection and counting
+from a dedicated crop camera.**
 
-Built for an **Apple Silicon Mac** receiving an **H.264 RTP stream over UDP**.
-A camera, a desktop display, and separately downloaded model weights are required
-for the live demo. Automated tests run without a camera or model weights.
-Real-field accuracy and unique-fruit counting along a flight path are not established.
+AD4PT explores how an OpenIPC camera on a drone can become a practical crop
+observation system. A secondary RGB camera streams crop imagery to a ground
+station, where YOLO11s detects ripe and unripe strawberries and BoT-SORT associates
+detections across frames. An operator sees the results during streaming, and each
+session ends with a structured JSON count summary.
+
+![AD4PT aircraft prototype, OpenIPC camera installation, and YOLO11s detections on an artificial strawberry arrangement](<pictures/Fruit%20Detection%20Via%20YOLO11s.png>)
+
+*AD4PT Prototype 1: the aircraft, its dedicated OpenIPC crop camera, and a live
+detection example using artificial fruit and foliage.*
+
+[System architecture](#system-architecture) · [Detection and tracking](#detection-and-tracking) ·
+[Quick start](#quick-start) · [Counting modes](#results-and-counting-modes) ·
+[Development](#development)
+
+## The project
+
+Crop phenotyping turns observable plant characteristics into measurements. This
+prototype focuses on two visual traits: **visible strawberry count** and
+**apparent ripeness category**. These observations are a starting point for
+studying fruit load and maturity distribution; they do not measure hidden fruit,
+fruit mass, biochemical maturity, or total harvestable yield.
+
+The wider AD4PT platform brings together autonomous navigation and crop
+observation. This repository implements the **ground-station phenotyping
+subsystem**: video reception, detection, tracking or fixed-scene counting, live
+preview, and session export. The aircraft and navigation components provide the
+project context; flight control is outside this codebase.
+
+## Why OpenIPC? The system contribution
+
+[OpenIPC](https://github.com/OpenIPC/firmware) provides an alternative IP-camera
+firmware ecosystem. AD4PT uses an OpenIPC/APFPV camera as a dedicated sensing
+payload and connects its H.264 RTP stream directly to a crop-analysis application.
+
+The project's novelty lies in **integrating the camera, wireless video link, and
+live phenotyping workflow**. Its main design contributions are:
+
+- **A separate crop-observation camera.** Crop imaging can use a viewing direction
+  and framing suited to fruit inspection, while the navigation camera serves pose
+  estimation and aircraft movement.
+- **Analysis during acquisition.** Frames flow from the camera into detection and
+  counting while the stream is active. The operator can inspect detections
+  immediately, without first recording and transferring a complete video.
+- **Ground-station inference.** The crop camera supplies compressed video; the Mac
+  runs the detector and counting logic. This separates the camera payload from
+  the compute used for phenotyping and allows model changes on the receiver.
+- **A reusable measurement workflow.** Configurable stream and model settings,
+  temporal confirmation, optional raw-frame captures, and JSON summaries connect
+  image acquisition to experiments that can be inspected and repeated.
+
+This is a system integration contribution built from existing firmware,
+detection, and tracking methods. The current prototype demonstrates a route from
+an OpenIPC video feed to crop observations; establishing research priority or
+field performance requires a separate comparative evaluation.
+
+## System architecture
+
+![AD4PT system architecture showing separate navigation and OpenIPC crop-imaging paths, Mac ground-station processing, JSON export, and planned server ingestion](pictures/ad4pt-simple-architecture.png)
+
+*Wider platform architecture. This repository implements the crop-camera receiver
+and Mac processing path through JSON export. The navigation stack is shown for
+context; server ingestion is planned.*
+
+The implemented data path is:
+
+```text
+OpenIPC / APFPV crop camera
+  → Wi-Fi · H.264 / RTP over UDP
+  → GStreamer decode · latest-frame delivery
+  → YOLO11s ripe / unripe detections
+  → BoT-SORT tracking OR fixed-scene confirmation
+  → live preview + one JSON summary at session end
+```
+
+Bounded queues and latest-frame delivery prioritize recent imagery when inference
+is slower than the camera. The application does not promise to process every
+frame. Inference runs on the ground station; measured end-to-end latency and
+hard real-time guarantees are not established.
+
+## Detection and tracking
+
+![BoT-SORT smoke-test image 2 with one ripe strawberry in green, seven unripe strawberries in yellow, and track IDs](pictures/botsort-smoke-test-2.jpg)
+
+*BoT-SORT smoke test, image 2. Green boxes indicate ripe predictions; yellow boxes
+indicate unripe predictions. Labels show track IDs and detector confidence.*
+
+The saved smoke-test result reports **1 ripe + 7 unripe = 8 confirmed tracks**
+after eight repeated copies of the same photograph, with confirmation requiring
+three qualifying observations. The visible detections matched the detector-only
+output on all eight frames. This checks detection-to-tracker association and
+count confirmation on a static input. It does not test camera motion, occlusion,
+or distinct-fruit counting during flight. These are system predictions rather
+than an independently annotated accuracy result.
+
+BoT-SORT adds identities to the detector's original boxes, scores, and classes.
+Confirmed IDs count once within a session, helping avoid adding the same visible
+fruit again in every frame. A separate fixed-scene mode estimates one stationary
+arrangement without accumulating track IDs. See
+[counting behavior and limitations](documents/counting.md).
+
+## Current scope
+
+The live configuration targets an **Apple Silicon Mac** receiving an **H.264 RTP
+stream over UDP**. A camera, desktop display, and separately downloaded model
+weights are required. Automated tests run without a camera or model weights.
+The repository also includes tools for dataset preparation, fine-tuning, and
+fixed-threshold evaluation.
+
+Real-field accuracy and unique-fruit counting along a flight path remain open
+validation tasks. The prototype image, static smoke test, and controlled replica
+tests demonstrate different parts of the workflow and should be interpreted
+separately.
 
 ## Quick start
 
@@ -31,7 +138,7 @@ repository root: the default config paths are relative to it.
 ### 2. Obtain the model
 
 Weights are excluded from this repository. The default configuration expects the
-pinned upstream checkpoint below. Review its [provenance and license notes](documents/model.md)
+pinned upstream checkpoint below. See its [model provenance](documents/model.md)
 before downloading or redistributing it.
 
 ```bash
@@ -101,10 +208,10 @@ file at that path. A startup stream timeout produces zero counts and
 `stop_reason: "error"`. Inspect the stop reason before interpreting a result.
 Force-killing the process or losing power cannot trigger a final save.
 
-| Mode | Intended use | What contributes to the result |
-| --- | --- | --- |
-| `tracks` (default) | Moving views | Each BoT-SORT ID confirmed in at least three qualifying observations counts once. |
-| `scene` | One stationary, fully visible arrangement | Boxes need five consecutive matching detections; the most frequent joint ripe/unripe count pair needs at least three supporting frames. |
+| Mode                 | Intended use                              | What contributes to the result                                                                                                          |
+| -------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `tracks` (default) | Moving views                              | Each BoT-SORT ID confirmed in at least three qualifying observations counts once.                                                       |
+| `scene`            | One stationary, fully visible arrangement | Boxes need five consecutive matching detections; the most frequent joint ripe/unripe count pair needs at least three supporting frames. |
 
 Counts are estimates. Missed fruit, foliage false positives, occlusion, and ID
 changes affect results. Fruit leaving and re-entering view can count twice in
@@ -113,17 +220,17 @@ See [counting behavior and settings](documents/counting.md) for details.
 
 ## Configuration and useful options
 
-| File or option | Purpose |
-| --- | --- |
-| [config/live_apfpv.yaml](config/live_apfpv.yaml) | RTP port, payload, decoder, expected stream properties, timeout. |
+| File or option                                                  | Purpose                                                                        |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| [config/live_apfpv.yaml](config/live_apfpv.yaml)                 | RTP port, payload, decoder, expected stream properties, timeout.               |
 | [config/strawberry_yolo11s.json](config/strawberry_yolo11s.json) | Checkpoint identity, class list, input size, confidence, crop and box filters. |
-| [config/strawberry_botsort.yaml](config/strawberry_botsort.yaml) | Track confirmation and retention settings. |
-| `--device cpu` | Run inference on CPU instead of MPS. |
-| `--max-frames 100` | End after 100 processed frames. |
-| `--run-root PATH` | Change the result directory. |
-| `--capture-dir datasets/camera-errors` | Enable **S** in the preview to save the latest raw frame. |
-| `--scene-confirmation-frames N` | Require 1–60 consecutive matching frames in scene mode. |
-| `--unripe-confidence 0.5` | Apply a stricter unripe threshold; may also hide genuine green fruit. |
+| [config/strawberry_botsort.yaml](config/strawberry_botsort.yaml) | Track confirmation and retention settings.                                     |
+| `--device cpu`                                                | Run inference on CPU instead of MPS.                                           |
+| `--max-frames 100`                                            | End after 100 processed frames.                                                |
+| `--run-root PATH`                                             | Change the result directory.                                                   |
+| `--capture-dir datasets/camera-errors`                        | Enable **S** in the preview to save the latest raw frame.                |
+| `--scene-confirmation-frames N`                               | Require 1–60 consecutive matching frames in scene mode.                       |
+| `--unripe-confidence 0.5`                                     | Apply a stricter unripe threshold; may also hide genuine green fruit.          |
 
 The supplied detector config crops the top **8%** to exclude the original camera's
 OSD and rejects boxes covering more than **15%** of the remaining image. These
@@ -148,7 +255,8 @@ View all CLI options with `python -m ad4pt demo --help`.
 
 ## Development
 
-Tests use synthetic fixtures and mocked inference/video backends. From the
+Tests use synthetic fixtures, mocked inference/video backends, and the real
+BoT-SORT backend. From the
 repository root, with a Python 3.11+ environment:
 
 ```bash
@@ -165,18 +273,25 @@ training, and validation. Training images and candidate weights are not included
 
 ```text
 config/       Camera, detector, tracker, and training recipes
-documents/   Usage, model provenance, and fine-tuning guides
+documents/    Usage, model provenance, and fine-tuning guides
+pictures/     Project overview, system architecture, and tracking example
 scripts/      Dataset preparation, evaluation, and reporting tools
 src/ad4pt/    Live receiver, detector, counting, and CLI
-tests/       Automated tests and small synthetic fixtures
+tests/        Automated tests and small synthetic fixtures
 ```
 
 Datasets, weights, recordings, generated reports, run outputs, and local research
 archives are excluded from Git.
 
-## Licensing and third-party assets
+## Author and acknowledgements
 
-A license for the project code has not yet been selected. Public visibility does
-not itself grant a reuse license. The model, datasets, and dependencies have their
-own terms; see [model provenance](documents/model.md). No model weights or research
-photos are distributed in this repository.
+**Author :** [Aditya Aryamaan](https://github.com/aditya-aryamaan)
+
+Master of Robotics and Automation Engineering, University of Auckland.
+
+AD4PT is developed for laboratory research into drone-based crop observation and
+visual phenotyping, with strawberry detection and counting as the current focus.
+
+The system builds on the work of the OpenIPC community, Ultralytics YOLO11, and
+the BoT-SORT authors. The pretrained strawberry checkpoint is credited in the
+[model provenance notes](documents/model.md).

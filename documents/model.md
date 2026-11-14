@@ -18,12 +18,6 @@ loading the checkpoint and checks its class labels.
 [Upstream files at the pinned revision](https://huggingface.co/shivamjha98/yolo11s-strawberry-detection/tree/4c2fbec408c569063751b124f6f36e6ed313ad61).
 Download instructions are in the [README](../README.md#2-obtain-the-model).
 
-The original local inspection recorded conflicting licensing information: the
-model card declared MIT, while checkpoint metadata recorded AGPL-3.0 and an
-Ultralytics license URL. These notes do not resolve that conflict. Check the
-applicable upstream terms before using or redistributing the artifact. The
-project's eventual code license will not change third-party terms.
-
 The publisher's training-data description and reported metrics have not been
 independently verified by this project. They are not AD4PT evaluation results.
 Local smoke images and artificial-fruit tests do not establish held-out real-field

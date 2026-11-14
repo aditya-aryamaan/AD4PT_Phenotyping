@@ -25,6 +25,3 @@ Training and evaluation tools are described in
 [documents/model-finetuning.md](documents/model-finetuning.md). Report validation
 and held-out test results separately, and distinguish real-fruit experiments from
 replica tests. Avoid inferring detector accuracy from total-count agreement.
-
-A code license has not yet been selected. See the README and model provenance
-notes before reusing or distributing project assets.
