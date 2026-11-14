@@ -1,0 +1,14 @@
+name: ad4pt
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - pip
+  - pygobject>=3.46,<4
+  - gstreamer>=1.20,<2
+  - gst-plugins-base>=1.20,<2
+  - gst-plugins-good>=1.20,<2
+  - gst-plugins-bad>=1.20,<2
+  - pip:
+      - "-e .[vision]"

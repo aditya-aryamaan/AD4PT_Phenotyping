@@ -1,0 +1,8 @@
+# Resolved relative to this file by scripts/finetune_strawberries.py.
+path: ../datasets/strawberry-adaptation
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: strawberry-ripe
+  1: strawberry-unripe

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ad4pt"
+version = "0.1.0"
+description = "Live ripe/unripe strawberry detection and counts"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2,<3", "opencv-python>=4.10,<5", "PyYAML>=6,<7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1", "mypy>=1.15,<2", "types-PyYAML>=6,<7"]
+vision = ["ultralytics==8.4.14", "lap>=0.5.12,<0.6"]
+live = ["PyGObject>=3.46,<4"]
+reports = ["matplotlib>=3.9,<4"]
+
+[project.scripts]
+ad4pt = "ad4pt.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+extend-exclude = [".local-archive"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+strict = true
+files = ["src/ad4pt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

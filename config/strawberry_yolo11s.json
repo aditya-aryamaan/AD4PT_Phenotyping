@@ -1,0 +1,14 @@
+{
+  "config_version": "1.0",
+  "model_id": "shivamjha98-strawberry-yolo11s-4c2fbec",
+  "model_path": "../models/strawberry-yolo11s/strawberry_yolo_best.pt",
+  "artifact_sha256": "566a60e937bd7cbfffce6fd050e1d53bdda5119d01a31a35c54efd6653378b48",
+  "classes": ["strawberry-ripe", "strawberry-unripe"],
+  "device": "cpu",
+  "image_size_px": 640,
+  "confidence_threshold": 0.25,
+  "iou_threshold": 0.7,
+  "max_detections": 300,
+  "ignore_top_fraction": 0.08,
+  "max_box_area_fraction": 0.15
+}
